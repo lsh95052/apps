@@ -3,9 +3,7 @@ name: Android Cloud Build (ProEQ Music Player)
 on:
   push:
     branches: [ "main", "master" ]
-  pull_request:
-    branches: [ "main", "master" ]
-  workflow_dispatch: # 支援在 GitHub Actions 網頁手動一鍵觸發編譯
+  workflow_dispatch:
 
 jobs:
   build-apk:
@@ -13,32 +11,36 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: 1. 檢出專案原始碼 (Checkout Repository)
+      - name: 1. Checkout Repository
         uses: actions/checkout@v4
 
-      - name: 2. 安裝 JDK 17 環境 (Setup JDK 17)
+      - name: 2. Setup JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 3. 配置 Android SDK 環境 (Setup Android SDK)
-        uses: android-actions/setup-android@v3
-
-      - name: 4. 配置 Gradle 8.7 雲端編譯引擎 (Setup Gradle)
+      - name: 3. Setup Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: 5. 執行編譯產生 Debug 與 Release Signed APK
+      - name: 4. Build Debug & Release APK
         run: |
-          gradle assembleDebug assembleRelease --stacktrace
+          if [ -f "settings.gradle.kts" ]; then
+            gradle assembleDebug assembleRelease --stacktrace
+          else
+            SUBDIR=$(find . -maxdepth 3 -name "settings.gradle.kts" -printf '%h\n' | head -n 1)
+            echo "Found project in $SUBDIR"
+            cd "$SUBDIR"
+            gradle assembleDebug assembleRelease --stacktrace
+          fi
 
-      - name: 6. 上傳可直接安裝的 APK 產物 (Upload APK Artifacts)
+      - name: 5. Upload APK Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ProEQ-MusicPlayer-APK
           path: |
-            app/build/outputs/apk/debug/app-debug.apk
-            app/build/outputs/apk/release/app-release.apk
+            **/build/outputs/apk/debug/*.apk
+            **/build/outputs/apk/release/*.apk
           if-no-files-found: error
