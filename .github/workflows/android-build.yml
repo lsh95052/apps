@@ -20,26 +20,23 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
-      - name: 3. Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: 4. Setup Gradle 8.7
+      - name: 3. Setup Gradle 8.7
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.7'
 
-      - name: 5. Build Debug & Release APK
+      - name: 4. Build Debug & Release APK
         run: |
           if [ -f "settings.gradle.kts" ]; then
             gradle assembleDebug assembleRelease --stacktrace
           else
-            SUBDIR=$(find . -maxdepth 2 -name "settings.gradle.kts" -printf '%h\n' | head -n 1)
+            SUBDIR=$(find . -maxdepth 3 -name "settings.gradle.kts" -printf '%h\n' | head -n 1)
             echo "Found project in $SUBDIR"
             cd "$SUBDIR"
             gradle assembleDebug assembleRelease --stacktrace
           fi
 
-      - name: 6. Upload APK Artifacts
+      - name: 5. Upload APK Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ProEQ-MusicPlayer-APK
