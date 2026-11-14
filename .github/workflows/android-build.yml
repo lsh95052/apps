@@ -25,16 +25,37 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: 4. Build Debug & Release APK
+      - name: 4. Verify Structure & Build APK
         run: |
-          if [ -f "settings.gradle.kts" ]; then
-            gradle assembleDebug assembleRelease --stacktrace
-          else
-            SUBDIR=$(find . -maxdepth 3 -name "settings.gradle.kts" -printf '%h\n' | head -n 1)
-            echo "Found project in $SUBDIR"
-            cd "$SUBDIR"
-            gradle assembleDebug assembleRelease --stacktrace
+          echo "=== 1. 檢查儲存庫內的所有檔案路徑 ==="
+          find . -maxdepth 6 -not -path '*/.*'
+
+          # 如果使用者上傳時不小心把所有檔案扁平化丟在同一層，自動幫他歸位成標準 Android 資料夾結構！
+          if [ -f "MainActivity.kt" ] && [ ! -d "app/src/main" ]; then
+            echo "偵測到扁平化檔案，正在自動重建標準 Android 資料夾結構..."
+            mkdir -p app/src/main/java/com/audiophile/proeqplayer
+            mkdir -p app/src/main/res/values
+            mv -f MainActivity.kt LocalMusicScanner.kt ProEqualizerEngine.kt app/src/main/java/com/audiophile/proeqplayer/ 2>/dev/null || true
+            mv -f AndroidManifest.xml app/src/main/ 2>/dev/null || true
+            mv -f strings.xml app/src/main/res/values/ 2>/dev/null || true
           fi
+
+          # 自動尋找 settings.gradle.kts 所在目錄
+          GRADLE_SETTINGS=$(find . -maxdepth 4 -name "settings.gradle.kts" | head -n 1)
+          if [ -n "$GRADLE_SETTINGS" ]; then
+            PROJECT_DIR=$(dirname "$GRADLE_SETTINGS")
+            echo "進入專案目錄: $PROJECT_DIR"
+            cd "$PROJECT_DIR"
+          fi
+
+          echo "=== 2. 確認 ANDROID_HOME 與 SDK 授權 ==="
+          export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
+          export ANDROID_SDK_ROOT="$ANDROID_HOME"
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          yes | $ANDROID_HOME/cmdline-tools/*/bin/sdkmanager --licenses >/dev/null 2>&1 || true
+
+          echo "=== 3. 開始編譯 APK ==="
+          gradle assembleDebug assembleRelease --console=plain
 
       - name: 5. Upload APK Artifacts
         uses: actions/upload-artifact@v4
