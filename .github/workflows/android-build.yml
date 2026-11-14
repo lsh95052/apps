@@ -1,0 +1,49 @@
+name: Android Cloud Build (ProEQ Music Player)
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Compile Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 1. Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 2. Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: 3. Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 4. Setup Gradle 8.7
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: 5. Build Debug & Release APK
+        run: |
+          if [ -f "settings.gradle.kts" ]; then
+            gradle assembleDebug assembleRelease --stacktrace
+          else
+            SUBDIR=$(find . -maxdepth 2 -name "settings.gradle.kts" -printf '%h\n' | head -n 1)
+            echo "Found project in $SUBDIR"
+            cd "$SUBDIR"
+            gradle assembleDebug assembleRelease --stacktrace
+          fi
+
+      - name: 6. Upload APK Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ProEQ-MusicPlayer-APK
+          path: |
+            **/build/outputs/apk/debug/*.apk
+            **/build/outputs/apk/release/*.apk
+          if-no-files-found: error
