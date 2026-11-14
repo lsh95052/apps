@@ -25,30 +25,27 @@ jobs:
         with:
           gradle-version: '8.7'
 
-      - name: 4. Verify Structure & Build APK
+      - name: 4. Auto-Patch Kotlin & Build APK
         run: |
-          echo "=== 1. 檢查儲存庫內的所有檔案路徑 ==="
-          find . -maxdepth 6 -not -path '*/.*'
-
-          # 如果使用者上傳時不小心把所有檔案扁平化丟在同一層，自動幫他歸位成標準 Android 資料夾結構！
-          if [ -f "MainActivity.kt" ] && [ ! -d "app/src/main" ]; then
-            echo "偵測到扁平化檔案，正在自動重建標準 Android 資料夾結構..."
-            mkdir -p app/src/main/java/com/audiophile/proeqplayer
-            mkdir -p app/src/main/res/values
-            mv -f MainActivity.kt LocalMusicScanner.kt ProEqualizerEngine.kt app/src/main/java/com/audiophile/proeqplayer/ 2>/dev/null || true
-            mv -f AndroidManifest.xml app/src/main/ 2>/dev/null || true
-            mv -f strings.xml app/src/main/res/values/ 2>/dev/null || true
-          fi
-
           # 自動尋找 settings.gradle.kts 所在目錄
           GRADLE_SETTINGS=$(find . -maxdepth 4 -name "settings.gradle.kts" | head -n 1)
           if [ -n "$GRADLE_SETTINGS" ]; then
             PROJECT_DIR=$(dirname "$GRADLE_SETTINGS")
-            echo "進入專案目錄: $PROJECT_DIR"
             cd "$PROJECT_DIR"
           fi
 
-          echo "=== 2. 確認 ANDROID_HOME 與 SDK 授權 ==="
+          echo "=== 1. 自動修正 AudioEffect.setEnabled 與 UnstableApi 標註 ==="
+          # 將 .enabled = xxx 替換為相容所有 SDK 的 .setEnabled(xxx)
+          find app/src -name "*.kt" -exec sed -i 's/\.enabled = \([a-zA-Z0-9_ &><]*\)/.setEnabled(\1)/g' {} +
+          # 為 ProEqMusicApp 補上 @OptIn(UnstableApi::class)
+          find app/src -name "MainActivity.kt" -exec sed -i 's/@Composable\nfun ProEqMusicApp/@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)\n@Composable\nfun ProEqMusicApp/g' {} +
+
+          # 在 app/build.gradle.kts 加上全域 OptIn 避免 Media3 UnstableApi 報錯
+          if ! grep -q "freeCompilerArgs" app/build.gradle.kts; then
+            sed -i 's/jvmTarget = "17"/jvmTarget = "17"\n        freeCompilerArgs += listOf("-opt-in=androidx.media3.common.util.UnstableApi", "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api")/g' app/build.gradle.kts
+          fi
+
+          echo "=== 2. 設定 Android SDK 環境 ==="
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           export ANDROID_SDK_ROOT="$ANDROID_HOME"
           echo "sdk.dir=$ANDROID_HOME" > local.properties
