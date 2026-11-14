@@ -33,8 +33,22 @@ jobs:
             cd "$PROJECT_DIR"
           fi
 
-          # 自動修正 ProEqualizerEngine.kt 第 210 行的 bassBoost?.let 為 bassBoost?.also
-          find app/src -name "ProEqualizerEngine.kt" -exec sed -i 's/bassBoost?\.let/bassBoost?\.also/g' {} +
+          # 1. 將 ProEqualizerEngine.kt 的 bassBoost?.let 改為標準 if 判斷，徹底消除第 210 行錯誤
+          python3 -c '
+          p = "app/src/main/java/com/audiophile/proeqplayer/ProEqualizerEngine.kt"
+          txt = open(p).read()
+          txt = txt.replace("bassBoost?.let { bb ->", "val bb = bassBoost\n        if (bb != null) {")
+          open(p, "w").write(txt)
+          '
+
+          # 2. 在 app/build.gradle.kts 加入全域 OptIn 標記，避免 Media3 UnstableApi 警告或錯誤
+          python3 -c '
+          p = "app/build.gradle.kts"
+          txt = open(p).read()
+          if "freeCompilerArgs" not in txt:
+              txt = txt.replace("jvmTarget = \"17\"", "jvmTarget = \"17\"\n        freeCompilerArgs += listOf(\"-opt-in=androidx.media3.common.util.UnstableApi\", \"-opt-in=androidx.compose.material3.ExperimentalMaterial3Api\")")
+              open(p, "w").write(txt)
+          '
 
           export ANDROID_HOME="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           export ANDROID_SDK_ROOT="$ANDROID_HOME"
